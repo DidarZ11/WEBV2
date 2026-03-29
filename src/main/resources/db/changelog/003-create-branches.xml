@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="003-1" author="didar">
+        <createTable tableName="branches">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="city" type="VARCHAR(100)"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="users" baseColumnNames="branch_id"
+                referencedTableName="branches" referencedColumnNames="id"
+                constraintName="fk_users_branch"/>
+    </changeSet>
+
+</databaseChangeLog>

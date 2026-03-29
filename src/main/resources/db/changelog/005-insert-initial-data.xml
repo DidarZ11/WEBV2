@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="005-1" author="didar">
+        <!-- Роли -->
+        <insert tableName="roles">
+            <column name="name" value="ADMIN"/>
+            <column name="description" value="Системный администратор"/>
+        </insert>
+        <insert tableName="roles">
+            <column name="name" value="MANAGER"/>
+            <column name="description" value="Менеджер — создаёт и заполняет графики"/>
+        </insert>
+        <insert tableName="roles">
+            <column name="name" value="HR"/>
+            <column name="description" value="HR — утверждает графики"/>
+        </insert>
+
+        <!-- Права -->
+        <insert tableName="authorities">
+            <column name="name" value="USER_MANAGE"/>
+        </insert>
+        <insert tableName="authorities">
+            <column name="name" value="SCHEDULE_CREATE"/>
+        </insert>
+        <insert tableName="authorities">
+            <column name="name" value="SCHEDULE_EDIT"/>
+        </insert>
+        <insert tableName="authorities">
+            <column name="name" value="SCHEDULE_SUBMIT"/>
+        </insert>
+        <insert tableName="authorities">
+            <column name="name" value="SCHEDULE_APPROVE"/>
+        </insert>
+        <insert tableName="authorities">
+            <column name="name" value="SCHEDULE_VIEW"/>
+        </insert>
+
+        <!-- ADMIN получает все права (id 1-6) -->
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="1"/>
+            <column name="authority_id" valueNumeric="1"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="1"/>
+            <column name="authority_id" valueNumeric="2"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="1"/>
+            <column name="authority_id" valueNumeric="3"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="1"/>
+            <column name="authority_id" valueNumeric="4"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="1"/>
+            <column name="authority_id" valueNumeric="5"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="1"/>
+            <column name="authority_id" valueNumeric="6"/>
+        </insert>
+
+        <!-- MANAGER: CREATE, EDIT, SUBMIT, VIEW -->
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="2"/>
+            <column name="authority_id" valueNumeric="2"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="2"/>
+            <column name="authority_id" valueNumeric="3"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="2"/>
+            <column name="authority_id" valueNumeric="4"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="2"/>
+            <column name="authority_id" valueNumeric="6"/>
+        </insert>
+
+        <!-- HR: APPROVE, VIEW -->
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="3"/>
+            <column name="authority_id" valueNumeric="5"/>
+        </insert>
+        <insert tableName="roles_to_authorities">
+            <column name="role_id" valueNumeric="3"/>
+            <column name="authority_id" valueNumeric="6"/>
+        </insert>
+
+        <!-- Тестовый филиал -->
+        <insert tableName="branches">
+            <column name="name" value="Главный офис"/>
+            <column name="city" value="Алматы"/>
+        </insert>
+    </changeSet>
+    <changeSet id="005-2" author="didar">
+        <!-- Admin пользователь, пароль: admin123 (BCrypt) -->
+        <insert tableName="users">
+            <column name="email" value="admin@crm.kz"/>
+            <column name="password_hash" value="$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi"/>
+            <column name="full_name" value="Admin User"/>
+            <column name="role_id" valueNumeric="1"/>
+            <column name="branch_id" valueNumeric="1"/>
+            <column name="is_active" valueBoolean="true"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
