@@ -2,7 +2,7 @@ package crm.user.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull; // Не забудь этот импорт
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
@@ -11,13 +11,11 @@ public class UserCreateDto {
     @Email
     private String email;
 
-    @NotBlank
-    private String password;
+    private String password; // необязательный — если пусто, генерируется автоматически
 
     @NotBlank
     private String fullName;
 
-    // ДОБАВИЛИ: ID роли, которую мы хотим назначить пользователю
     @NotNull(message = "ID роли обязателен")
     private Long roleId;
 }

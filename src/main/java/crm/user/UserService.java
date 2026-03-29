@@ -1,6 +1,6 @@
 package crm.user;
 
-import crm.common.exception.NotFoundException; // Исправлен путь до твоего исключения
+import crm.common.exception.NotFoundException;
 import crm.role.Role;
 import crm.role.RoleRepository;
 import crm.user.dto.UserCreateDto;
@@ -11,14 +11,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository; // ДОБАВИЛИ РЕПОЗИТОРИЙ
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -27,18 +27,23 @@ public class UserService {
             throw new IllegalStateException("Email already in use");
         }
 
-        // НАХОДИМ РОЛЬ В БАЗЕ ПО ID
         Role role = roleRepository.findById(dto.getRoleId())
                 .orElseThrow(() -> new NotFoundException("Role not found"));
 
+        // Если пароль не передан — генерируем временный
+        String rawPassword = (dto.getPassword() != null && !dto.getPassword().isBlank())
+                ? dto.getPassword()
+                : generateTempPassword();
+
         User user = new User();
         user.setEmail(dto.getEmail());
-        user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
+        user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setFullName(dto.getFullName());
+        user.setRole(role);
 
-        user.setRole(role); // ПРИВЯЗЫВАЕМ РОЛЬ К ПОЛЬЗОВАТЕЛЮ
-
-        return UserResponseDto.from(userRepository.save(user));
+        UserResponseDto response = UserResponseDto.from(userRepository.save(user));
+        response.setTempPassword(rawPassword); // показываем пароль один раз
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -54,10 +59,8 @@ public class UserService {
                 .orElseThrow(() -> new NotFoundException("User not found"));
 
         if (dto.getFullName() != null) {
-            user.setFullName(dto.getFullName()); // Заменяем firstName и lastName
+            user.setFullName(dto.getFullName());
         }
-
-        // Дополнительные поля для обновления, если появятся
 
         return UserResponseDto.from(userRepository.save(user));
     }
@@ -68,5 +71,9 @@ public class UserService {
             throw new NotFoundException("User not found");
         }
         userRepository.deleteById(id);
+    }
+
+    private String generateTempPassword() {
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 }
