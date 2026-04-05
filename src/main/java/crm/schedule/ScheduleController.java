@@ -7,7 +7,6 @@ import crm.user.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,7 +21,6 @@ public class ScheduleController {
     private final ScheduleEntryService scheduleEntryService;
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('MANAGER', 'ADMIN', 'SCHEDULE_CREATE')")
     public ResponseEntity<ApiResponse<ScheduleResponseDto>> create(
             @RequestBody ScheduleCreateDto dto,
             @AuthenticationPrincipal User currentUser) {
@@ -48,7 +46,6 @@ public class ScheduleController {
     }
 
     @PatchMapping("/{id}/submit")
-    @PreAuthorize("hasAnyAuthority('MANAGER', 'ADMIN', 'SCHEDULE_SUBMIT')")
     public ResponseEntity<ApiResponse<ScheduleResponseDto>> submit(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
@@ -57,7 +54,6 @@ public class ScheduleController {
     }
 
     @PatchMapping("/{id}/approve")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'SCHEDULE_APPROVE')")
     public ResponseEntity<ApiResponse<ScheduleResponseDto>> approve(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
@@ -66,7 +62,6 @@ public class ScheduleController {
     }
 
     @PatchMapping("/{id}/reject")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'SCHEDULE_APPROVE')")
     public ResponseEntity<ApiResponse<ScheduleResponseDto>> reject(
             @PathVariable Long id,
             @RequestParam("comment") String comment,
@@ -76,7 +71,6 @@ public class ScheduleController {
     }
 
     @PutMapping("/{id}/entries")
-    @PreAuthorize("hasAnyAuthority('MANAGER', 'ADMIN', 'SCHEDULE_EDIT')")
     public ResponseEntity<ApiResponse<Void>> fillScheduleEntries(
             @PathVariable Long id,
             @RequestBody @Valid List<crm.schedule.dto.ScheduleEntryDto> entries) {
