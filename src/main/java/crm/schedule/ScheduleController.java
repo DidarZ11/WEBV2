@@ -31,7 +31,6 @@ public class ScheduleController {
     }
 
     @GetMapping("/branch/{branchId}")
-    @PreAuthorize("hasAnyAuthority('SCHEDULE_VIEW', 'SCHEDULE_CREATE', 'SCHEDULE_APPROVE', 'USER_MANAGE')")
     public ResponseEntity<ApiResponse<List<ScheduleResponseDto>>> getByBranch(
             @PathVariable Long branchId) {
         var list = scheduleService.getByBranch(branchId)
@@ -42,7 +41,6 @@ public class ScheduleController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('SCHEDULE_VIEW', 'SCHEDULE_CREATE', 'SCHEDULE_APPROVE', 'USER_MANAGE')")
     public ResponseEntity<ApiResponse<ScheduleResponseDto>> getById(
             @PathVariable Long id) {
         var schedule = scheduleService.getById(id);
