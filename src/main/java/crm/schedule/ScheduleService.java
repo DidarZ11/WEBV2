@@ -145,8 +145,8 @@ public class ScheduleService {
     public Schedule reopen(Long scheduleId, Long userId) {
         var schedule = getScheduleOrThrow(scheduleId);
 
-        if (schedule.getStatus() != ScheduleStatus.REJECTED) {
-            throw new IllegalStateException("Only REJECTED schedule can be reopened");
+        if (schedule.getStatus() != ScheduleStatus.REJECTED && schedule.getStatus() != ScheduleStatus.APPROVED) {
+            throw new IllegalStateException("Only REJECTED or APPROVED schedules can be reopened");
         }
 
         schedule.setStatus(ScheduleStatus.DRAFT);
