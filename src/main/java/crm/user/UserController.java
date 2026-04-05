@@ -10,6 +10,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/user")
 @RequiredArgsConstructor
@@ -41,5 +43,10 @@ public class UserController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         userService.deleteUser(id);
         return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/all")
+    public ApiResponse<List<UserResponseDto>> getAllUsers() {
+        return ApiResponse.ok(userService.getAllUsers());
     }
 }

@@ -11,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -51,6 +52,14 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         return UserResponseDto.from(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserResponseDto> getAllUsers() {
+        return userRepository.findAll()
+                .stream() // Открываем поток данных
+                .map(UserResponseDto::from) // Превращаем каждого User из базы в красивый DTO
+                .toList(); // Собираем всё обратно в список (удобная фишка Java 16+)
     }
 
     @Transactional
