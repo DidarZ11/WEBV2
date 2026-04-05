@@ -48,7 +48,7 @@ public class Schedule {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
-    @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<ScheduleEntry> entries = new ArrayList<>();
 
     @CreationTimestamp
