@@ -77,4 +77,12 @@ public class ScheduleController {
         scheduleEntryService.fillSchedule(id, entries);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
+
+    @PatchMapping("/{id}/reopen")
+    public ResponseEntity<ApiResponse<ScheduleResponseDto>> reopen(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser) {
+        var schedule = scheduleService.reopen(id, currentUser.getId());
+        return ResponseEntity.ok(ApiResponse.ok(ScheduleResponseDto.from(schedule)));
+    }
 }

@@ -141,4 +141,19 @@ public class ScheduleService {
 
         versionRepository.save(version);
     }
+
+    public Schedule reopen(Long scheduleId, Long userId) {
+        var schedule = getScheduleOrThrow(scheduleId);
+
+        if (schedule.getStatus() != ScheduleStatus.REJECTED) {
+            throw new IllegalStateException("Only REJECTED schedule can be reopened");
+        }
+
+        schedule.setStatus(ScheduleStatus.DRAFT);
+        schedule.setVersion(schedule.getVersion() + 1);
+
+        saveVersionHistory(schedule, userId, "Возвращён в черновик для редактирования");
+
+        return scheduleRepository.save(schedule);
+    }
 }
