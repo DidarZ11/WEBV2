@@ -50,13 +50,12 @@ public class User implements UserDetails {
     // UserDetails methods
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // 1. Собираем все права (authorities)
         java.util.Set<GrantedAuthority> authorities = role.getAuthorities().stream()
                 .map(a -> new SimpleGrantedAuthority(a.getName()))
                 .collect(Collectors.toSet());
 
-        // 2. ДОБАВЛЯЕМ САМУ РОЛЬ С ПРЕФИКСОМ "ROLE_"
         authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
+        authorities.add(new SimpleGrantedAuthority(role.getName())); // ← добавь эту строку
 
         return authorities;
     }
