@@ -39,9 +39,12 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/login").permitAll()
-                        .requestMatchers("/api/v1/auth/refresh").permitAll()
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        // РАЗРЕШАЕМ ВЕБ-СОКЕТЫ (без этого будет 403)
+                        .requestMatchers("/ws-telephony/**").permitAll()
+                        // РАЗРЕШАЕМ СИМУЛЯЦИЮ ЗВОНКОВ
+                        .requestMatchers("/api/v1/telephony/webhook/simulate").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -56,14 +59,15 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "http://localhost:3000"
-                // сюда добавишь URL фронта когда он задеплоит
+                "http://localhost:3000",
+                "https://crm-frontend-n0u0.onrender.com" // Твой фронт на Render
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Применяем настройки CORS ко всем путям, включая веб-сокеты
         source.registerCorsConfiguration("/**", config);
         return source;
     }
