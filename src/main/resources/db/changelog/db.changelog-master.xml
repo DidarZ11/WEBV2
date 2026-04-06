@@ -14,4 +14,6 @@
     <include file="classpath:db/changelog/007-update-schedule-versions.xml"/>
     <include file="classpath:db/changelog/008-alter-branches.xml"/>
 
+    <include file="classpath:db/changelog/009-add-telephony-tables.xml"/>
+
 </databaseChangeLog>
