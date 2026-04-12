@@ -14,8 +14,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -26,34 +26,44 @@ public class TwilioService {
 
     /**
      * Генерируем Twilio Access Token вручную через Auth0 java-jwt.
-     * Это обходит конфликт между Twilio SDK (старый jjwt API) и нашим jjwt 0.12.3.
-     *
-     * Структура токена соответствует спецификации Twilio Access Token:
-     * https://www.twilio.com/docs/iam/access-tokens
+     * Структура строго по спецификации: https://www.twilio.com/docs/iam/access-tokens
      */
     public String generateAccessToken(String identity) {
-        long now = System.currentTimeMillis();
-        long expiry = now + (3600 * 1000); // 1 час
+        long nowSeconds = System.currentTimeMillis() / 1000;
+        long expirySeconds = nowSeconds + 3600; // 1 час
 
-        // Grant для Voice SDK
-        Map<String, Object> voiceGrant = new HashMap<>();
-        voiceGrant.put("outgoing", Map.of("application_sid", twilioConfig.getTwimlAppSid()));
-        voiceGrant.put("incoming", Map.of("allow", true));
+        // Voice grant
+        Map<String, Object> outgoing = new HashMap<>();
+        outgoing.put("application_sid", twilioConfig.getTwimlAppSid());
 
-        Map<String, Object> grants = new HashMap<>();
+        Map<String, Object> incoming = new HashMap<>();
+        incoming.put("allow", true);
+
+        Map<String, Object> voiceGrant = new LinkedHashMap<>();
+        voiceGrant.put("outgoing", outgoing);
+        voiceGrant.put("incoming", incoming);
+
+        // grants — identity на том же уровне что и voice
+        Map<String, Object> grants = new LinkedHashMap<>();
         grants.put("identity", identity);
         grants.put("voice", voiceGrant);
 
         Algorithm algorithm = Algorithm.HMAC256(twilioConfig.getApiKeySecret());
 
-        return JWT.create()
-                .withJWTId(UUID.randomUUID().toString())
+        String token = JWT.create()
+                // jti = уникальный ID токена
+                .withJWTId(twilioConfig.getApiKeySid() + "-" + nowSeconds)
+                // iss = API Key SID (SK...)
                 .withIssuer(twilioConfig.getApiKeySid())
+                // sub = Account SID (AC...)
                 .withSubject(twilioConfig.getAccountSid())
-                .withIssuedAt(new Date(now))
-                .withExpiresAt(new Date(expiry))
+                .withIssuedAt(new Date(nowSeconds * 1000))
+                .withExpiresAt(new Date(expirySeconds * 1000))
                 .withClaim("grants", grants)
                 .sign(algorithm);
+
+        log.info("Generated Twilio token for identity={}, expires in 1h", identity);
+        return token;
     }
 
     public String handleIncomingCall(String operatorIdentity) {
