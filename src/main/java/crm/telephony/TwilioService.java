@@ -5,6 +5,7 @@ import com.twilio.jwt.accesstoken.VoiceGrant;
 import com.twilio.twiml.VoiceResponse;
 import com.twilio.twiml.voice.Dial;
 import com.twilio.twiml.voice.Client;
+import com.twilio.twiml.voice.Number;
 import com.twilio.twiml.voice.Say;
 import crm.config.TwilioConfig;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +19,6 @@ public class TwilioService {
 
     private final TwilioConfig twilioConfig;
 
-    // Генерируем токен для входа оператора в сеть
     public String generateAccessToken(String identity) {
         VoiceGrant grant = new VoiceGrant();
         grant.setOutgoingApplicationSid(twilioConfig.getTwimlAppSid());
@@ -36,24 +36,22 @@ public class TwilioService {
         return token.toJwt();
     }
 
-    // Основной метод для входящего звонка от Twilio
     public String handleIncomingCall(String operatorIdentity) {
-        // 1. Приветствие
-        Say say = new Say.Builder("Добро пожаловать в CRM. Соединяем с оператором.")
+        Say say = new Say.Builder("Входящий звонок. Соединяю с оператором.")
                 .language(Say.Language.RU_RU)
                 .build();
 
-        // 2. Соединение с браузером (Client)
-        // ВАЖНО: identity должен быть тот же, что и в токене фронтенда
         Client client = new Client.Builder(operatorIdentity).build();
         Dial dial = new Dial.Builder().client(client).build();
 
-        // Собираем ответ
-        VoiceResponse response = new VoiceResponse.Builder()
-                .say(say)
-                .dial(dial)
-                .build();
+        return new VoiceResponse.Builder().say(say).dial(dial).build().toXml();
+    }
 
-        return response.toXml();
+    public String handleOutgoingCall(String clientPhoneNumber) {
+        // Создаем Dial на реальный номер мобильного телефона
+        Number number = new Number.Builder(clientPhoneNumber).build();
+        Dial dial = new Dial.Builder().number(number).build();
+
+        return new VoiceResponse.Builder().dial(dial).build().toXml();
     }
 }
