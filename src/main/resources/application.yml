@@ -25,3 +25,7 @@ twilio:
   twiml-app-sid: ${TWILIO_APP_SID}
   api-key-sid: ${TWILIO_API_KEY_SID}
   api-key-secret: ${TWILIO_API_KEY_SECRET}
+
+  logging:
+    level:
+      crm: DEBUG
