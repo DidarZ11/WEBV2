@@ -47,43 +47,25 @@
             <artifactId>liquibase-core</artifactId>
         </dependency>
 
-        <!-- jjwt 0.12.3 — для JwtService (авторизация пользователей CRM) -->
+        <!-- jjwt 0.9.1 — совместим и с Twilio SDK и с нашим JwtService (после рефактора) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.12.3</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.12.3</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.3</version>
-            <scope>runtime</scope>
+            <artifactId>jjwt</artifactId>
+            <version>0.9.1</version>
         </dependency>
 
-        <!-- Auth0 java-jwt — для генерации Twilio Access Token (без конфликта с jjwt) -->
+        <!-- Нужен для jjwt 0.9.1 -->
         <dependency>
-            <groupId>com.auth0</groupId>
-            <artifactId>java-jwt</artifactId>
-            <version>4.4.0</version>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+            <version>2.3.1</version>
         </dependency>
 
-        <!-- Twilio SDK — только для TwiML и REST API, БЕЗ использования Twilio JWT -->
+        <!-- Twilio SDK — теперь использует тот же jjwt 0.9.1, конфликта нет -->
         <dependency>
             <groupId>com.twilio.sdk</groupId>
             <artifactId>twilio</artifactId>
             <version>9.14.1</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.jsonwebtoken</groupId>
-                    <artifactId>jjwt</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
         <dependency>
@@ -121,7 +103,6 @@
                     </excludes>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>

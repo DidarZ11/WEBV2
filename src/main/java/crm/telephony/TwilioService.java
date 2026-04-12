@@ -1,7 +1,7 @@
 package crm.telephony;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
+import com.twilio.jwt.accesstoken.AccessToken;
+import com.twilio.jwt.accesstoken.VoiceGrant;
 import com.twilio.twiml.VoiceResponse;
 import com.twilio.twiml.voice.Client;
 import com.twilio.twiml.voice.Dial;
@@ -12,11 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -24,47 +19,24 @@ public class TwilioService {
 
     private final TwilioConfig twilioConfig;
 
+    // Используем оригинальный Twilio SDK — теперь конфликта нет (оба используют jjwt 0.9.1)
     public String generateAccessToken(String identity) {
-        long nowSeconds = System.currentTimeMillis() / 1000;
-        long expirySeconds = nowSeconds + 3600;
+        VoiceGrant grant = new VoiceGrant();
+        grant.setOutgoingApplicationSid(twilioConfig.getTwimlAppSid());
+        grant.setIncomingAllow(true);
 
-        // Voice grant — строго по спецификации Twilio
-        Map<String, Object> outgoing = new HashMap<>();
-        outgoing.put("application_sid", twilioConfig.getTwimlAppSid());
+        AccessToken token = new AccessToken.Builder(
+                twilioConfig.getAccountSid(),
+                twilioConfig.getApiKeySid(),
+                twilioConfig.getApiKeySecret()
+        )
+                .identity(identity)
+                .grant(grant)
+                .build();
 
-        Map<String, Object> incoming = new HashMap<>();
-        incoming.put("allow", true);
-
-        Map<String, Object> voiceGrant = new LinkedHashMap<>();
-        voiceGrant.put("outgoing", outgoing);
-        voiceGrant.put("incoming", incoming);
-
-        Map<String, Object> grants = new LinkedHashMap<>();
-        grants.put("identity", identity);
-        grants.put("voice", voiceGrant);
-
-        Algorithm algorithm = Algorithm.HMAC256(twilioConfig.getApiKeySecret());
-
-        // Twilio требует тип токена "JWT" в заголовке
-        Map<String, Object> headerClaims = new HashMap<>();
-        headerClaims.put("typ", "JWT");
-        headerClaims.put("alg", "HS256");
-
-        String token = JWT.create()
-                .withHeader(headerClaims)
-                .withJWTId(twilioConfig.getApiKeySid() + "-" + nowSeconds)
-                .withIssuer(twilioConfig.getApiKeySid())
-                .withSubject(twilioConfig.getAccountSid())
-                .withIssuedAt(new Date(nowSeconds * 1000))
-                .withExpiresAt(new Date(expirySeconds * 1000))
-                .withClaim("grants", grants)
-                .sign(algorithm);
-
-        log.info("Generated Twilio token for identity={}, iss={}, sub={}",
-                identity,
-                twilioConfig.getApiKeySid().substring(0, 6) + "...",
-                twilioConfig.getAccountSid().substring(0, 6) + "...");
-        return token;
+        String jwt = token.toJwt();
+        log.info("Generated Twilio token for identity={}", identity);
+        return jwt;
     }
 
     public String handleIncomingCall(String operatorIdentity) {
