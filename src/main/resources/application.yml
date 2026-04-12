@@ -17,3 +17,11 @@ jwt:
 
 server:
   port: ${PORT:8080}
+
+twilio:
+  account-sid: ${TWILIO_ACCOUNT_SID:AC43dfc6fa13b61451f3f3f62b54f9d729}
+  auth-token: ${TWILIO_AUTH_TOKEN:8d1cd4db743904232a53d312d491e8a2}
+  phone-number: ${TWILIO_PHONE_NUMBER:+16414018641}
+  twiml-app-sid: ${TWILIO_APP_SID:APf1b4fec1ac3f145ab015122a7e6b2fc0}
+  api-key-sid: ${TWILIO_API_KEY_SID:SKcdf8508bf13bd62a8faca79dbfdfb6a7}
+  api-key-secret: ${TWILIO_API_KEY_SECRET:e6OuQZbl2JeCk5P0eMu2wPYqGjj4LuHS}

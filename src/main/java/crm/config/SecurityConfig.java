@@ -41,10 +41,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        // РАЗРЕШАЕМ ВЕБ-СОКЕТЫ (без этого будет 403)
+                        // WebSocket
                         .requestMatchers("/ws-telephony/**").permitAll()
-                        // РАЗРЕШАЕМ СИМУЛЯЦИЮ ЗВОНКОВ
+                        // Симуляция звонка
                         .requestMatchers("/api/v1/telephony/webhook/simulate").permitAll()
+                        // Twilio webhook — Twilio сам вызывает без токена
+                        .requestMatchers("/api/v1/telephony/twiml/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -60,14 +62,14 @@ public class SecurityConfig {
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://localhost:3000",
-                "https://crm-frontend-n0u0.onrender.com" // Твой фронт на Render
+                "https://crm-frontend-n0u0.onrender.com",
+                "https://api.twilio.com"  // Twilio webhook запросы
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // Применяем настройки CORS ко всем путям, включая веб-сокеты
         source.registerCorsConfiguration("/**", config);
         return source;
     }
