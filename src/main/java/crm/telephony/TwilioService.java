@@ -24,15 +24,11 @@ public class TwilioService {
 
     private final TwilioConfig twilioConfig;
 
-    /**
-     * Генерируем Twilio Access Token вручную через Auth0 java-jwt.
-     * Структура строго по спецификации: https://www.twilio.com/docs/iam/access-tokens
-     */
     public String generateAccessToken(String identity) {
         long nowSeconds = System.currentTimeMillis() / 1000;
-        long expirySeconds = nowSeconds + 3600; // 1 час
+        long expirySeconds = nowSeconds + 3600;
 
-        // Voice grant
+        // Voice grant — строго по спецификации Twilio
         Map<String, Object> outgoing = new HashMap<>();
         outgoing.put("application_sid", twilioConfig.getTwimlAppSid());
 
@@ -43,26 +39,31 @@ public class TwilioService {
         voiceGrant.put("outgoing", outgoing);
         voiceGrant.put("incoming", incoming);
 
-        // grants — identity на том же уровне что и voice
         Map<String, Object> grants = new LinkedHashMap<>();
         grants.put("identity", identity);
         grants.put("voice", voiceGrant);
 
         Algorithm algorithm = Algorithm.HMAC256(twilioConfig.getApiKeySecret());
 
+        // Twilio требует тип токена "JWT" в заголовке
+        Map<String, Object> headerClaims = new HashMap<>();
+        headerClaims.put("typ", "JWT");
+        headerClaims.put("alg", "HS256");
+
         String token = JWT.create()
-                // jti = уникальный ID токена
+                .withHeader(headerClaims)
                 .withJWTId(twilioConfig.getApiKeySid() + "-" + nowSeconds)
-                // iss = API Key SID (SK...)
                 .withIssuer(twilioConfig.getApiKeySid())
-                // sub = Account SID (AC...)
                 .withSubject(twilioConfig.getAccountSid())
                 .withIssuedAt(new Date(nowSeconds * 1000))
                 .withExpiresAt(new Date(expirySeconds * 1000))
                 .withClaim("grants", grants)
                 .sign(algorithm);
 
-        log.info("Generated Twilio token for identity={}, expires in 1h", identity);
+        log.info("Generated Twilio token for identity={}, iss={}, sub={}",
+                identity,
+                twilioConfig.getApiKeySid().substring(0, 6) + "...",
+                twilioConfig.getAccountSid().substring(0, 6) + "...");
         return token;
     }
 
