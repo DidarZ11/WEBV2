@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,8 +24,13 @@ public class TelephonyController {
     private final TwilioService twilioService;
 
     @GetMapping("/token")
-    public ResponseEntity<ApiResponse<String>> getToken(@AuthenticationPrincipal User currentUser) {
-        String token = twilioService.generateAccessToken(currentUser.getEmail());
+    public ResponseEntity<ApiResponse<String>> getToken() {
+        // Берём email напрямую из SecurityContext — надёжнее чем @AuthenticationPrincipal
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        String token = twilioService.generateAccessToken(email);
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
