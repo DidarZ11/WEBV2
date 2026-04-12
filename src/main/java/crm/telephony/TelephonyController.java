@@ -21,21 +21,24 @@ public class TelephonyController {
     private final SimpMessagingTemplate messagingTemplate;
     private final TwilioService twilioService;
 
-    // Токен для браузера — фронт вызывает при логине оператора
+    // 1. Токен для браузера — фронт вызывает при логине оператора
     @GetMapping("/token")
     public ResponseEntity<ApiResponse<String>> getToken(
             @AuthenticationPrincipal User currentUser) {
+        // Берем email текущего юзера как identity для Twilio
         String token = twilioService.generateAccessToken(currentUser.getEmail());
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
-    // Webhook — Twilio вызывает когда поступает реальный звонок
+    // 2. Webhook — Twilio вызывает, когда поступает реальный звонок на номер
     @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleIncomingCall() {
-        return twilioService.handleIncomingCall();
+        // Мы жестко направляем звонок на админа для теста.
+        // Identity должен СОВПАДАТЬ с тем, что в токене на фронте.
+        return twilioService.handleIncomingCall("admin@crm.kz");
     }
 
-    // Симуляция входящего звонка для тестирования
+    // 3. Симуляция входящего звонка (только для отрисовки карточки через WebSocket)
     @PostMapping("/webhook/simulate")
     public ResponseEntity<ApiResponse<CallRequestDto>> simulateIncomingCall(
             @RequestParam String phone) {
@@ -46,12 +49,13 @@ public class TelephonyController {
         CallRequest savedCall = callRequestRepository.save(call);
         CallRequestDto callDto = CallRequestDto.from(savedCall);
 
+        // Отправляем уведомление по веб-сокетам
         messagingTemplate.convertAndSend("/topic/calls", callDto);
 
         return ResponseEntity.ok(ApiResponse.ok(callDto));
     }
 
-    // Оператор берёт трубку — захватывает звонок
+    // 4. Оператор нажимает "Ответить" — фиксируем в базе
     @PostMapping("/calls/{id}/answer")
     public ResponseEntity<ApiResponse<CallRequestDto>> answerCall(
             @PathVariable Long id,
@@ -69,16 +73,15 @@ public class TelephonyController {
 
         CallRequestDto callDto = CallRequestDto.from(call);
 
-        // Уведомляем всех операторов что звонок взят
+        // Сообщаем остальным, что звонок взят
         messagingTemplate.convertAndSend("/topic/calls/answered", callDto);
 
         return ResponseEntity.ok(ApiResponse.ok(callDto));
     }
 
-    // Завершить звонок
+    // 5. Завершить звонок
     @PostMapping("/calls/{id}/complete")
-    public ResponseEntity<ApiResponse<CallRequestDto>> completeCall(
-            @PathVariable Long id) {
+    public ResponseEntity<ApiResponse<CallRequestDto>> completeCall(@PathVariable Long id) {
         CallRequest call = callRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Call not found"));
 
@@ -91,6 +94,7 @@ public class TelephonyController {
         return ResponseEntity.ok(ApiResponse.ok(callDto));
     }
 
+    // 6. Получить список активных звонков (очередь)
     @GetMapping("/calls/active")
     public ResponseEntity<ApiResponse<List<CallRequestDto>>> getActiveCalls() {
         List<CallRequestDto> activeCalls = callRequestRepository

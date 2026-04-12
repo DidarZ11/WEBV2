@@ -8,14 +8,17 @@ import com.twilio.twiml.voice.Client;
 import com.twilio.twiml.voice.Say;
 import crm.config.TwilioConfig;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TwilioService {
 
     private final TwilioConfig twilioConfig;
 
+    // Генерируем токен для входа оператора в сеть
     public String generateAccessToken(String identity) {
         VoiceGrant grant = new VoiceGrant();
         grant.setOutgoingApplicationSid(twilioConfig.getTwimlAppSid());
@@ -23,8 +26,8 @@ public class TwilioService {
 
         AccessToken token = new AccessToken.Builder(
                 twilioConfig.getAccountSid(),
-                twilioConfig.getApiKeySid(),      // SK...
-                twilioConfig.getApiKeySecret()    // Secret
+                twilioConfig.getApiKeySid(),
+                twilioConfig.getApiKeySecret()
         )
                 .identity(identity)
                 .grant(grant)
@@ -33,18 +36,24 @@ public class TwilioService {
         return token.toJwt();
     }
 
-    public String handleIncomingCall() {
-        Say say = new Say.Builder("Добро пожаловать. Соединяем с оператором.")
+    // Основной метод для входящего звонка от Twilio
+    public String handleIncomingCall(String operatorIdentity) {
+        // 1. Приветствие
+        Say say = new Say.Builder("Добро пожаловать в CRM. Соединяем с оператором.")
                 .language(Say.Language.RU_RU)
                 .build();
-        VoiceResponse response = new VoiceResponse.Builder().say(say).build();
-        return response.toXml();
-    }
 
-    public String connectToOperator(String operatorIdentity) {
+        // 2. Соединение с браузером (Client)
+        // ВАЖНО: identity должен быть тот же, что и в токене фронтенда
         Client client = new Client.Builder(operatorIdentity).build();
         Dial dial = new Dial.Builder().client(client).build();
-        VoiceResponse response = new VoiceResponse.Builder().dial(dial).build();
+
+        // Собираем ответ
+        VoiceResponse response = new VoiceResponse.Builder()
+                .say(say)
+                .dial(dial)
+                .build();
+
         return response.toXml();
     }
 }
