@@ -1,16 +1,21 @@
 package crm.telephony;
 
-import com.twilio.jwt.accesstoken.AccessToken;
-import com.twilio.jwt.accesstoken.VoiceGrant;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
 import com.twilio.twiml.VoiceResponse;
-import com.twilio.twiml.voice.Dial;
 import com.twilio.twiml.voice.Client;
+import com.twilio.twiml.voice.Dial;
 import com.twilio.twiml.voice.Number;
 import com.twilio.twiml.voice.Say;
 import crm.config.TwilioConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -19,21 +24,36 @@ public class TwilioService {
 
     private final TwilioConfig twilioConfig;
 
+    /**
+     * Генерируем Twilio Access Token вручную через Auth0 java-jwt.
+     * Это обходит конфликт между Twilio SDK (старый jjwt API) и нашим jjwt 0.12.3.
+     *
+     * Структура токена соответствует спецификации Twilio Access Token:
+     * https://www.twilio.com/docs/iam/access-tokens
+     */
     public String generateAccessToken(String identity) {
-        VoiceGrant grant = new VoiceGrant();
-        grant.setOutgoingApplicationSid(twilioConfig.getTwimlAppSid());
-        grant.setIncomingAllow(true);
+        long now = System.currentTimeMillis();
+        long expiry = now + (3600 * 1000); // 1 час
 
-        AccessToken token = new AccessToken.Builder(
-                twilioConfig.getAccountSid(),
-                twilioConfig.getApiKeySid(),
-                twilioConfig.getApiKeySecret()
-        )
-                .identity(identity)
-                .grant(grant)
-                .build();
+        // Grant для Voice SDK
+        Map<String, Object> voiceGrant = new HashMap<>();
+        voiceGrant.put("outgoing", Map.of("application_sid", twilioConfig.getTwimlAppSid()));
+        voiceGrant.put("incoming", Map.of("allow", true));
 
-        return token.toJwt();
+        Map<String, Object> grants = new HashMap<>();
+        grants.put("identity", identity);
+        grants.put("voice", voiceGrant);
+
+        Algorithm algorithm = Algorithm.HMAC256(twilioConfig.getApiKeySecret());
+
+        return JWT.create()
+                .withJWTId(UUID.randomUUID().toString())
+                .withIssuer(twilioConfig.getApiKeySid())
+                .withSubject(twilioConfig.getAccountSid())
+                .withIssuedAt(new Date(now))
+                .withExpiresAt(new Date(expiry))
+                .withClaim("grants", grants)
+                .sign(algorithm);
     }
 
     public String handleIncomingCall(String operatorIdentity) {
@@ -48,7 +68,6 @@ public class TwilioService {
     }
 
     public String handleOutgoingCall(String clientPhoneNumber) {
-        // Создаем Dial на реальный номер мобильного телефона
         Number number = new Number.Builder(clientPhoneNumber).build();
         Dial dial = new Dial.Builder().number(number).build();
 
