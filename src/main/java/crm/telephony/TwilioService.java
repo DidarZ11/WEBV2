@@ -19,7 +19,7 @@ public class TwilioService {
 
     private final TwilioConfig twilioConfig;
 
-    // Используем оригинальный Twilio SDK — теперь конфликта нет (оба используют jjwt 0.9.1)
+    // Генерация токена для браузера
     public String generateAccessToken(String identity) {
         VoiceGrant grant = new VoiceGrant();
         grant.setOutgoingApplicationSid(twilioConfig.getTwimlAppSid());
@@ -39,6 +39,7 @@ public class TwilioService {
         return jwt;
     }
 
+    // Соединение клиента с оператором (Входящий)
     public String handleIncomingCall(String operatorIdentity) {
         Say say = new Say.Builder("Входящий звонок. Соединяю с оператором.")
                 .language(Say.Language.RU_RU)
@@ -50,8 +51,14 @@ public class TwilioService {
         return new VoiceResponse.Builder().say(say).dial(dial).build().toXml();
     }
 
+    // Соединение оператора с клиентом (Исходящий)
     public String handleOutgoingCall(String clientPhoneNumber) {
         Number number = new Number.Builder(clientPhoneNumber).build();
+
+        // ВАЖНО: Если Twilio будет отклонять вызов, раскомментируй строку ниже
+        // и подставь свой купленный номер Twilio (Caller ID), так как он обязателен по правилам некоторых стран.
+        // Dial dial = new Dial.Builder().callerId("+1234567890").number(number).build();
+
         Dial dial = new Dial.Builder().number(number).build();
 
         return new VoiceResponse.Builder().dial(dial).build().toXml();
