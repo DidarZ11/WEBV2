@@ -19,17 +19,27 @@ public class UserController {
 
     private final UserService userService;
 
+    // 1. Получить список всех пользователей (для админов и менеджеров)
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'MANAGER')")
+    public ApiResponse<List<UserResponseDto>> getAllUsers() {
+        return ApiResponse.ok(userService.getAllUsers());
+    }
+
+    // 2. Добавить нового пользователя
     @PostMapping("/add")
     @PreAuthorize("hasAnyAuthority('USER_MANAGE', 'ADMIN')")
     public ApiResponse<UserResponseDto> add(@RequestBody @Valid UserCreateDto dto) {
         return ApiResponse.ok(userService.createUser(dto));
     }
 
+    // 3. Получить инфо о текущем авторизованном пользователе
     @GetMapping("/info")
     public ApiResponse<UserResponseDto> info(Authentication authentication) {
         return ApiResponse.ok(userService.getUserInfo(authentication.getName()));
     }
 
+    // 4. Редактировать пользователя
     @PutMapping("/edit/{id}")
     @PreAuthorize("hasAnyAuthority('USER_MANAGE', 'ADMIN')")
     public ApiResponse<UserResponseDto> edit(
@@ -38,15 +48,11 @@ public class UserController {
         return ApiResponse.ok(userService.editUser(id, dto));
     }
 
+    // 5. Удалить пользователя
     @DeleteMapping("/delete/{id}")
     @PreAuthorize("hasAnyAuthority('USER_MANAGE', 'ADMIN')")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         userService.deleteUser(id);
         return ApiResponse.ok(null);
-    }
-
-    @GetMapping("/all")
-    public ApiResponse<List<UserResponseDto>> getAllUsers() {
-        return ApiResponse.ok(userService.getAllUsers());
     }
 }

@@ -41,12 +41,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        // WebSocket
+
+                        // WebSocket: разрешаем handshake без JWT
                         .requestMatchers("/ws-telephony/**").permitAll()
-                        // Симуляция звонка
+
+                        // Телефония: открытые эндпоинты для симуляции и Webhook-ов Twilio
                         .requestMatchers("/api/v1/telephony/webhook/simulate").permitAll()
-                        // Twilio webhook — Twilio сам вызывает без токена
                         .requestMatchers("/api/v1/telephony/twiml/**").permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -59,15 +61,19 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
+
+        // Используем OriginPatterns для гибкости на Render
+        config.setAllowedOriginPatterns(List.of(
                 "http://localhost:5173",
                 "http://localhost:3000",
-                "https://crm-frontend-n0u0.onrender.com",
-                "https://api.twilio.com"  // Twilio webhook запросы
+                "https://*.onrender.com",
+                "https://api.twilio.com"
         ));
+
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
+        config.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
