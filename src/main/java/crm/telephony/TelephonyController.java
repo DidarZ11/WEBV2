@@ -108,4 +108,16 @@ public class TelephonyController {
                 .stream().map(CallRequestDto::from).toList();
         return ResponseEntity.ok(ApiResponse.ok(activeCalls));
     }
+
+    // НОВЫЙ ЭНДПОИНТ: Получить историю звонков
+    @GetMapping("/calls/history")
+    public ResponseEntity<ApiResponse<List<CallRequestDto>>> getCallHistory() {
+        List<CallRequestDto> history = callRequestRepository.findAll()
+                .stream()
+                .filter(call -> call.getStatus() == CallStatus.COMPLETED || call.getStatus() == CallStatus.IN_PROGRESS)
+                .map(CallRequestDto::from)
+                .toList();
+
+        return ResponseEntity.ok(ApiResponse.ok(history));
+    }
 }
