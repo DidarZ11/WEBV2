@@ -42,27 +42,17 @@ public class TelephonyController {
 
         String from = params.getFirst("From");
 
-        // Twilio передаёт кастомные params с префиксом или напрямую
-        // Пробуем все варианты
-        String to = params.getFirst("To");
+        // phoneNumber — кастомный параметр от фронта (не "To" — зарезервировано!)
+        String to = params.getFirst("phoneNumber");
         if (to == null || to.isBlank()) to = params.getFirst("PhoneNumber");
+        if (to == null || to.isBlank()) to = params.getFirst("To");
         if (to == null || to.isBlank()) to = params.getFirst("Called");
-        // Twilio иногда добавляет кастомные params без префикса
-        for (String key : params.keySet()) {
-            if (to == null || to.isBlank()) {
-                String val = params.getFirst(key);
-                if (val != null && val.startsWith("+") && val.length() > 7) {
-                    log.info("Found phone in param key={}, val={}", key, val);
-                    to = val;
-                }
-            }
-        }
 
         log.info("from={}, to={}", from, to);
 
         if (from != null && from.startsWith("client:")) {
             if (to == null || to.isBlank()) {
-                log.warn("Outgoing call but To is empty!");
+                log.warn("Outgoing call but To is empty! params={}", params);
                 return new VoiceResponse.Builder()
                         .say(new Say.Builder("Номер не указан")
                                 .language(Say.Language.RU_RU).build())
@@ -71,7 +61,6 @@ public class TelephonyController {
             return twilioService.handleOutgoingCall(to);
         }
 
-        // Входящий звонок
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
         call.setStatus(CallStatus.NEW);
