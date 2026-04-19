@@ -12,8 +12,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @RestController
@@ -25,8 +24,9 @@ public class TelephonyController {
     private final SimpMessagingTemplate messagingTemplate;
     private final TwilioService twilioService;
 
-    // Временное хранилище: callSid → phoneNumber (живёт до завершения звонка)
-    private final Map<String, String> pendingOutgoingCalls = new ConcurrentHashMap<>();
+    // Храним последний подготовленный номер — простое решение для одного оператора
+    // Для нескольких операторов нужна будет полноценная БД запись
+    private final AtomicReference<String> lastPreparedNumber = new AtomicReference<>("");
 
     @GetMapping("/token")
     public ResponseEntity<ApiResponse<String>> getToken() {
@@ -35,13 +35,10 @@ public class TelephonyController {
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
-    // Фронт вызывает этот endpoint ПЕРЕД device.connect()
-    // Бэкенд сохраняет номер и возвращает его — фронт передаёт его как callerId
     @PostMapping("/outgoing/prepare")
     public ResponseEntity<ApiResponse<String>> prepareOutgoingCall(@RequestParam String phoneNumber) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        // Используем email как ключ (один оператор — один звонок)
-        pendingOutgoingCalls.put(email, phoneNumber);
+        lastPreparedNumber.set(phoneNumber);
         log.info("Prepared outgoing call for {} to {}", email, phoneNumber);
         return ResponseEntity.ok(ApiResponse.ok("ok"));
     }
@@ -51,24 +48,20 @@ public class TelephonyController {
         log.info("=== TwiML params: {}", params);
 
         String from = params.getFirst("From");
-        String to = params.getFirst("To");
+        String direction = params.getFirst("Direction");
 
-        log.info("from={}, to={}", from, to);
+        log.info("from={}, direction={}", from, direction);
 
-        // Исходящий звонок с браузера
+        // Исходящий звонок с браузера (from всегда начинается с "client:")
         if (from != null && from.startsWith("client:")) {
-            // Извлекаем identity оператора из "client:admin@crm.kz"
-            String identity = from.replace("client:", "");
-
-            // Достаём номер из временного хранилища
-            String phoneNumber = pendingOutgoingCalls.remove(identity);
+            String phoneNumber = lastPreparedNumber.getAndSet("");
 
             if (phoneNumber == null || phoneNumber.isBlank()) {
-                log.warn("No pending outgoing call for identity: {}", identity);
+                log.warn("No prepared phone number! from={}", from);
                 return "<Response><Say language=\"ru-RU\">Номер не указан.</Say></Response>";
             }
 
-            log.info("Outgoing call from {} to {}", identity, phoneNumber);
+            log.info("Outgoing call from {} to {}", from, phoneNumber);
             return twilioService.handleOutgoingCall(phoneNumber);
         }
 
