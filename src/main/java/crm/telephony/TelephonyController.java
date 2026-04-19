@@ -34,44 +34,43 @@ public class TelephonyController {
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
-    // GET для проверки доступности из браузера
     @GetMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoiceGet() {
-        log.info("TWIML GET /voice - endpoint is accessible");
+        log.info("TWIML GET /voice - OK");
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>OK</Say></Response>";
     }
 
-    // POST - основной webhook от Twilio
     @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoice(@RequestParam(required = false) MultiValueMap<String, String> params) {
-        // Логируем ВСЕ параметры которые прислал Twilio — это ключевая диагностика
-        log.info("=== TWILIO WEBHOOK CALLED ===");
+        log.info("=== TWILIO WEBHOOK ===");
         if (params != null) {
-            params.forEach((key, values) ->
-                    log.info("  PARAM: {}={}", key, values)
-            );
-        } else {
-            log.warn("  PARAMS IS NULL!");
+            params.forEach((k, v) -> log.info("  {}={}", k, v));
         }
 
-        String from = params != null ? params.getFirst("From") : null;
-        String to   = params != null ? params.getFirst("To")   : null;
+        String from      = params != null ? params.getFirst("From")      : null;
+        String to        = params != null ? params.getFirst("To")        : null;
+        String caller    = params != null ? params.getFirst("Caller")    : null;
+        String direction = params != null ? params.getFirst("Direction") : null;
 
-        log.info("  From={}, To={}", from, to);
+        log.info("  from={} to={} caller={} direction={}", from, to, caller, direction);
 
-        // ИСХОДЯЩИЙ: звонок из браузера
-        if (from != null && from.startsWith("client:")) {
-            log.info("  => OUTGOING CALL to={}", to);
+        // Исходящий: From начинается с "client:" (даже если Anonymous)
+        // ИЛИ Direction = "inbound" но Caller = "client:..."
+        boolean isOutgoing = (from != null && from.startsWith("client:"))
+                || (caller != null && caller.startsWith("client:"));
+
+        if (isOutgoing) {
+            log.info("  => ИСХОДЯЩИЙ ЗВОНОК, to={}", to);
             if (to == null || to.isBlank()) {
-                log.error("  => To IS EMPTY! Returning error TwiML");
+                log.error("  => To ПУСТОЙ! Фронт не передал номер в params.To");
                 return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
-                        "<Response><Say language=\"ru-RU\">Номер не указан.</Say></Response>";
+                        "<Response><Say language=\"ru-RU\">Ошибка: номер не передан.</Say></Response>";
             }
             return twilioService.handleOutgoingCall(to);
         }
 
-        // ВХОДЯЩИЙ: звонок с реального телефона
-        log.info("  => INCOMING CALL from={}", from);
+        // Входящий
+        log.info("  => ВХОДЯЩИЙ ЗВОНОК from={}", from);
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
         call.setStatus(CallStatus.NEW);
@@ -95,9 +94,7 @@ public class TelephonyController {
     public ResponseEntity<ApiResponse<CallRequestDto>> answerCall(
             @PathVariable Long id, @AuthenticationPrincipal User currentUser) {
         CallRequest call = callRequestRepository.findById(id).orElseThrow();
-        if (call.getStatus() != CallStatus.NEW) {
-            throw new IllegalStateException("Call already taken");
-        }
+        if (call.getStatus() != CallStatus.NEW) throw new IllegalStateException("Call already taken");
         call.setStatus(CallStatus.IN_PROGRESS);
         call.setOperator(currentUser);
         callRequestRepository.save(call);
