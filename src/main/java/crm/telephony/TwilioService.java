@@ -56,13 +56,23 @@ public class TwilioService {
 
     // Соединение оператора с клиентом (Исходящий)
     public String handleOutgoingCall(String clientPhoneNumber) {
-        log.info("handleOutgoingCall: to={}, callerId={}", clientPhoneNumber, twilioConfig.getPhoneNumber());
+        // Убираем пробелы, скобки, тире — оставляем только + и цифры
+        String cleanNumber = clientPhoneNumber.replaceAll("[^+\\d]", "");
 
-        Number number = new Number.Builder(clientPhoneNumber).build();
+        log.info("handleOutgoingCall: raw={}, cleaned={}, callerId={}",
+                clientPhoneNumber, cleanNumber, twilioConfig.getPhoneNumber());
 
-        // callerId ОБЯЗАТЕЛЕН на триальном аккаунте Twilio — используем купленный номер
+        if (cleanNumber.isBlank()) {
+            log.error("handleOutgoingCall: номер пустой после очистки!");
+            return new VoiceResponse.Builder()
+                    .say(new Say.Builder("Номер телефона не указан.")
+                            .language(Say.Language.RU_RU).build())
+                    .build().toXml();
+        }
+
+        Number number = new Number.Builder(cleanNumber).build();
         Dial dial = new Dial.Builder()
-                .callerId(twilioConfig.getPhoneNumber()) // +16414018641
+                .callerId(twilioConfig.getPhoneNumber())
                 .number(number)
                 .build();
 
