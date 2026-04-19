@@ -40,27 +40,24 @@ public class TelephonyController {
         String from = params.getFirst("From");
         String to = params.getFirst("To");
 
-        // ИСПРАВЛЕНИЕ 2: Правильное определение исходящего звонка
-        // Если звонок идет из браузера, Twilio всегда передает From в формате "client:identity"
+        // Если звонок из браузера (исходящий)
         if (from != null && from.startsWith("client:")) {
-            // Это исходящий звонок от оператора к клиенту
             return twilioService.handleOutgoingCall(to);
         }
 
-        // Иначе это ВХОДЯЩИЙ звонок (с реального телефона на номер Twilio)
+        // Входящий звонок: создаем запись в БД
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
         call.setStatus(CallStatus.NEW);
         CallRequest savedCall = callRequestRepository.save(call);
 
-        // Уведомляем фронтенд по WebSocket
+        // Уведомляем фронт по вебсокетам
         messagingTemplate.convertAndSend("/topic/calls", CallRequestDto.from(savedCall));
 
-        // Соединяем с оператором.
-        // ВАЖНО: Используем очищенный ID. Пока хардкодим для теста.
+        // ОШИБКА БЫЛА ТУТ: Соединяем с очищенным ID
+        // Вместо "admin@crm.kz" используем "admin_crm_kz"
         return twilioService.handleIncomingCall("admin_crm_kz");
     }
-
     @PostMapping("/webhook/simulate")
     public ResponseEntity<ApiResponse<CallRequestDto>> simulateIncomingCall(@RequestParam String phone) {
         CallRequest call = new CallRequest();
