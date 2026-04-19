@@ -2,7 +2,6 @@ package crm.telephony;
 
 import crm.common.response.ApiResponse;
 import crm.telephony.dto.CallRequestDto;
-import crm.user.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -13,6 +12,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @RestController
@@ -24,6 +25,9 @@ public class TelephonyController {
     private final SimpMessagingTemplate messagingTemplate;
     private final TwilioService twilioService;
 
+    // Временное хранилище: callSid → phoneNumber (живёт до завершения звонка)
+    private final Map<String, String> pendingOutgoingCalls = new ConcurrentHashMap<>();
+
     @GetMapping("/token")
     public ResponseEntity<ApiResponse<String>> getToken() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -31,57 +35,41 @@ public class TelephonyController {
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
-    @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
-    public String handleVoice(
-            @RequestParam MultiValueMap<String, String> params,
-            // Номер телефона передаётся как query param в URL
-            @RequestParam(value = "to", required = false) String toParam) {
+    // Фронт вызывает этот endpoint ПЕРЕД device.connect()
+    // Бэкенд сохраняет номер и возвращает его — фронт передаёт его как callerId
+    @PostMapping("/outgoing/prepare")
+    public ResponseEntity<ApiResponse<String>> prepareOutgoingCall(@RequestParam String phoneNumber) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        // Используем email как ключ (один оператор — один звонок)
+        pendingOutgoingCalls.put(email, phoneNumber);
+        log.info("Prepared outgoing call for {} to {}", email, phoneNumber);
+        return ResponseEntity.ok(ApiResponse.ok("ok"));
+    }
 
+    @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
+    public String handleVoice(@RequestParam MultiValueMap<String, String> params) {
         log.info("=== TwiML params: {}", params);
 
         String from = params.getFirst("From");
-
-        // Пробуем получить номер из разных источников
-        String to = toParam; // из URL query param (?to=+77...)
-
-        // Если нет в URL — ищем в теле запроса
-        if (to == null || to.isBlank()) {
-            to = params.getFirst("To");
-        }
-        if (to == null || to.isBlank()) {
-            to = params.getFirst("PhoneNumber");
-        }
-
-        // Ищем любой параметр похожий на номер телефона
-        if (to == null || to.isBlank()) {
-            for (String key : params.keySet()) {
-                String val = params.getFirst(key);
-                if (val != null && !val.isBlank()
-                        && !val.startsWith("client:")
-                        && !val.startsWith("AP")
-                        && !val.startsWith("AC")
-                        && !val.startsWith("CA")
-                        && !val.equals("ringing")
-                        && !val.equals("inbound")
-                        && !val.equals("2010-04-01")
-                        && (val.startsWith("+") || val.matches("\\d{7,15}"))) {
-                    to = val;
-                    log.info("Found phone in param [{}]: {}", key, to);
-                    break;
-                }
-            }
-        }
+        String to = params.getFirst("To");
 
         log.info("from={}, to={}", from, to);
 
         // Исходящий звонок с браузера
         if (from != null && from.startsWith("client:")) {
-            if (to == null || to.isBlank()) {
-                log.warn("Outgoing call but To is empty! All params: {}", params);
-                return "<Response><Say language=\"ru-RU\">Номер не указан. Пожалуйста, введите номер телефона.</Say></Response>";
+            // Извлекаем identity оператора из "client:admin@crm.kz"
+            String identity = from.replace("client:", "");
+
+            // Достаём номер из временного хранилища
+            String phoneNumber = pendingOutgoingCalls.remove(identity);
+
+            if (phoneNumber == null || phoneNumber.isBlank()) {
+                log.warn("No pending outgoing call for identity: {}", identity);
+                return "<Response><Say language=\"ru-RU\">Номер не указан.</Say></Response>";
             }
-            log.info("Outgoing call to: {}", to);
-            return twilioService.handleOutgoingCall(to);
+
+            log.info("Outgoing call from {} to {}", identity, phoneNumber);
+            return twilioService.handleOutgoingCall(phoneNumber);
         }
 
         // Входящий звонок с реального телефона
@@ -105,13 +93,10 @@ public class TelephonyController {
     }
 
     @PostMapping("/calls/{id}/answer")
-    public ResponseEntity<ApiResponse<CallRequestDto>> answerCall(
-            @PathVariable Long id) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+    public ResponseEntity<ApiResponse<CallRequestDto>> answerCall(@PathVariable Long id) {
         CallRequest call = callRequestRepository.findById(id).orElseThrow();
         call.setStatus(CallStatus.IN_PROGRESS);
         callRequestRepository.save(call);
-
         CallRequestDto callDto = CallRequestDto.from(call);
         messagingTemplate.convertAndSend("/topic/calls/answered", callDto);
         return ResponseEntity.ok(ApiResponse.ok(callDto));
