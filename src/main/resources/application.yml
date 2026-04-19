@@ -3,6 +3,9 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/crm_db}
     username: ${DATABASE_USERNAME:postgres}
     password: ${DATABASE_PASSWORD:zainullin200511}
+    hikari:
+      connection-timeout: 20000
+      initialization-fail-timeout: 0
   jpa:
     hibernate:
       ddl-auto: validate
@@ -26,6 +29,6 @@ twilio:
   api-key-sid: ${TWILIO_API_KEY_SID}
   api-key-secret: ${TWILIO_API_KEY_SECRET}
 
-  logging:
-    level:
-      crm: DEBUG
+logging:
+  level:
+    crm: DEBUG
