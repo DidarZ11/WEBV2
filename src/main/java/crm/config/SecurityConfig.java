@@ -1,12 +1,9 @@
 package crm.config;
 
 import crm.auth.filter.JwtAuthFilter;
-import jakarta.servlet.DispatcherType;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -41,33 +38,14 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
-                        })
-                )
+                // ИСПРАВЛЕНИЕ: Разрешаем использование фреймов для SockJS
                 .headers(headers -> headers.frameOptions(f -> f.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
-                        // Разрешаем системные запросы
-                        .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // Публичные эндпоинты (логин, регистрация, документация)
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register").permitAll()
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-
-                        // Телефония
                         .requestMatchers("/ws-telephony/**").permitAll()
-                        .requestMatchers("/api/v1/telephony/webhook/**").permitAll()
+                        .requestMatchers("/api/v1/telephony/webhook/simulate").permitAll()
                         .requestMatchers("/api/v1/telephony/twiml/**").permitAll()
-
-                        // Смена пароля (только для авторизованных, любая роль)
-                        .requestMatchers("/api/v1/auth/change-password").authenticated()
-
-                        // Управление пользователями (доступно ADMIN, MANAGER и HR)
-                        .requestMatchers("/api/v1/user/**").hasAnyAuthority("ADMIN", "MANAGER", "HR")
-
-                        // Все остальное требует авторизации
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -80,13 +58,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Разрешаем фронтенд (Vite порт 5173)
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "https://*.onrender.com",
+                "https://api.twilio.com"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
+        config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         config.setExposedHeaders(List.of("Authorization"));
-        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
