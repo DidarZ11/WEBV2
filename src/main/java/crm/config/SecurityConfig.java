@@ -55,7 +55,8 @@ public class SecurityConfig {
                         .requestMatchers("/ws-telephony/**").permitAll()
                         .requestMatchers("/api/v1/telephony/webhook/**").permitAll()
                         .requestMatchers("/api/v1/telephony/twiml/**").permitAll()
-                        .requestMatchers("/api/v1/user/**").hasAnyAuthority("ADMIN", "MANAGER")
+                        // Найди эту строку в своем SecurityConfig.java и замени на:
+                        .requestMatchers("/api/v1/user/**").hasAnyAuthority("ADMIN", "MANAGER", "HR")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

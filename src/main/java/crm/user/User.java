@@ -37,7 +37,6 @@ public class User implements UserDetails {
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
-    // --- НОВОЕ ПОЛЕ ---
     @Enumerated(EnumType.STRING)
     @Column(name = "department")
     private Department department;
@@ -46,13 +45,16 @@ public class User implements UserDetails {
     @JoinColumn(name = "branch_id")
     private Branch branch;
 
+    // --- НОВОЕ ПОЛЕ ДЛЯ СМЕНЫ ПАРОЛЯ ---
+    @Column(name = "must_change_password")
+    private boolean mustChangePassword = true;
+
     @Column(name = "is_active")
     private boolean isActive = true;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    // UserDetails methods
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         java.util.Set<GrantedAuthority> authorities = role.getAuthorities().stream()
@@ -60,7 +62,7 @@ public class User implements UserDetails {
                 .collect(Collectors.toSet());
 
         authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
-        authorities.add(new SimpleGrantedAuthority(role.getName())); // ← добавь эту строку
+        authorities.add(new SimpleGrantedAuthority(role.getName()));
 
         return authorities;
     }

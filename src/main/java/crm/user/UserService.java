@@ -83,6 +83,16 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    @Transactional
+    public void changePassword(String email, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false); // Снимаем флаг после успешной смены
+        userRepository.save(user);
+    }
+
     private String generateTempPassword() {
         return UUID.randomUUID().toString().substring(0, 8);
     }
