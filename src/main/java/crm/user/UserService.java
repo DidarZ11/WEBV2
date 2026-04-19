@@ -93,6 +93,8 @@ public class UserService {
         userRepository.save(user);
     }
 
+
+
     private String generateTempPassword() {
         return UUID.randomUUID().toString().substring(0, 8);
     }

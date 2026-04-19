@@ -56,6 +56,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/telephony/webhook/**").permitAll()
                         .requestMatchers("/api/v1/telephony/twiml/**").permitAll()
                         // Найди эту строку в своем SecurityConfig.java и замени на:
+                        .requestMatchers("/api/v1/auth/change-password").authenticated() // Должен быть доступен всем вошедшим
                         .requestMatchers("/api/v1/user/**").hasAnyAuthority("ADMIN", "MANAGER", "HR")
                         .anyRequest().authenticated()
                 )
