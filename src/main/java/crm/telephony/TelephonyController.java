@@ -2,17 +2,18 @@ package crm.telephony;
 
 import crm.common.response.ApiResponse;
 import crm.telephony.dto.CallRequestDto;
+import crm.user.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @RestController
@@ -24,10 +25,6 @@ public class TelephonyController {
     private final SimpMessagingTemplate messagingTemplate;
     private final TwilioService twilioService;
 
-    // Храним последний подготовленный номер — простое решение для одного оператора
-    // Для нескольких операторов нужна будет полноценная БД запись
-    private final AtomicReference<String> lastPreparedNumber = new AtomicReference<>("");
-
     @GetMapping("/token")
     public ResponseEntity<ApiResponse<String>> getToken() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -35,34 +32,28 @@ public class TelephonyController {
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
-    @PostMapping("/outgoing/prepare")
-    public ResponseEntity<ApiResponse<String>> prepareOutgoingCall(@RequestParam String phoneNumber) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        lastPreparedNumber.set(phoneNumber);
-        log.info("Prepared outgoing call for {} to {}", email, phoneNumber);
-        return ResponseEntity.ok(ApiResponse.ok("ok"));
-    }
-
     @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoice(@RequestParam MultiValueMap<String, String> params) {
         log.info("=== TwiML params: {}", params);
 
         String from = params.getFirst("From");
-        String direction = params.getFirst("Direction");
 
-        log.info("from={}, direction={}", from, direction);
+        // Читаем To из разных возможных параметров
+        String to = params.getFirst("To");
+        if (to == null || to.isBlank()) to = params.getFirst("PhoneNumber");
+        if (to == null || to.isBlank()) to = params.getFirst("phoneNumber");
+        if (to == null || to.isBlank()) to = params.getFirst("number");
 
-        // Исходящий звонок с браузера (from всегда начинается с "client:")
+        log.info("from={}, to={}", from, to);
+
+        // Исходящий звонок с браузера
         if (from != null && from.startsWith("client:")) {
-            String phoneNumber = lastPreparedNumber.getAndSet("");
-
-            if (phoneNumber == null || phoneNumber.isBlank()) {
-                log.warn("No prepared phone number! from={}", from);
+            if (to == null || to.isBlank()) {
+                log.warn("Outgoing call but To is empty!");
                 return "<Response><Say language=\"ru-RU\">Номер не указан.</Say></Response>";
             }
-
-            log.info("Outgoing call from {} to {}", from, phoneNumber);
-            return twilioService.handleOutgoingCall(phoneNumber);
+            log.info("Outgoing call to: {}", to);
+            return twilioService.handleOutgoingCall(to);
         }
 
         // Входящий звонок с реального телефона
@@ -86,12 +77,25 @@ public class TelephonyController {
     }
 
     @PostMapping("/calls/{id}/answer")
-    public ResponseEntity<ApiResponse<CallRequestDto>> answerCall(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<CallRequestDto>> answerCall(
+            @PathVariable Long id, @AuthenticationPrincipal User currentUser) {
         CallRequest call = callRequestRepository.findById(id).orElseThrow();
+        if (call.getStatus() != CallStatus.NEW) throw new IllegalStateException("Call already taken");
         call.setStatus(CallStatus.IN_PROGRESS);
+        call.setOperator(currentUser);
         callRequestRepository.save(call);
         CallRequestDto callDto = CallRequestDto.from(call);
         messagingTemplate.convertAndSend("/topic/calls/answered", callDto);
+        return ResponseEntity.ok(ApiResponse.ok(callDto));
+    }
+
+    @PostMapping("/calls/{id}/complete")
+    public ResponseEntity<ApiResponse<CallRequestDto>> completeCall(@PathVariable Long id) {
+        CallRequest call = callRequestRepository.findById(id).orElseThrow();
+        call.setStatus(CallStatus.COMPLETED);
+        callRequestRepository.save(call);
+        CallRequestDto callDto = CallRequestDto.from(call);
+        messagingTemplate.convertAndSend("/topic/calls/completed", callDto);
         return ResponseEntity.ok(ApiResponse.ok(callDto));
     }
 
