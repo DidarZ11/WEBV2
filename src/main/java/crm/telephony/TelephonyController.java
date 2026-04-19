@@ -22,9 +22,16 @@ public class TelephonyController {
     private final SimpMessagingTemplate messagingTemplate;
     private final TwilioService twilioService;
 
+    // ИСПРАВЛЕНИЕ 1: Метод для очистки email от запрещенных символов Twilio
+    private String getSafeIdentity(String email) {
+        return email.replaceAll("[^a-zA-Z0-9_\\-]", "_");
+    }
+
     @GetMapping("/token")
     public ResponseEntity<ApiResponse<String>> getToken(@AuthenticationPrincipal User currentUser) {
-        String token = twilioService.generateAccessToken(currentUser.getEmail());
+        // Заменяем admin@crm.kz на admin_crm_kz
+        String safeIdentity = getSafeIdentity(currentUser.getEmail());
+        String token = twilioService.generateAccessToken(safeIdentity);
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
@@ -33,12 +40,14 @@ public class TelephonyController {
         String from = params.getFirst("From");
         String to = params.getFirst("To");
 
-        // 1. Если это исходящий с сайта (To не равен ID оператора)
-        if (to != null && !to.isEmpty() && !to.equals("admin@crm.kz")) {
+        // ИСПРАВЛЕНИЕ 2: Правильное определение исходящего звонка
+        // Если звонок идет из браузера, Twilio всегда передает From в формате "client:identity"
+        if (from != null && from.startsWith("client:")) {
+            // Это исходящий звонок от оператора к клиенту
             return twilioService.handleOutgoingCall(to);
         }
 
-        // 2. Иначе это входящий: Создаем карточку в базе
+        // Иначе это ВХОДЯЩИЙ звонок (с реального телефона на номер Twilio)
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
         call.setStatus(CallStatus.NEW);
@@ -47,7 +56,9 @@ public class TelephonyController {
         // Уведомляем фронтенд по WebSocket
         messagingTemplate.convertAndSend("/topic/calls", CallRequestDto.from(savedCall));
 
-        return twilioService.handleIncomingCall("admin@crm.kz");
+        // Соединяем с оператором.
+        // ВАЖНО: Используем очищенный ID. Пока хардкодим для теста.
+        return twilioService.handleIncomingCall("admin_crm_kz");
     }
 
     @PostMapping("/webhook/simulate")
