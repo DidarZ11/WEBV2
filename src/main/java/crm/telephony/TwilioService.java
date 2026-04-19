@@ -46,20 +46,25 @@ public class TwilioService {
                 .build();
 
         Client client = new Client.Builder(operatorIdentity).build();
-        Dial dial = new Dial.Builder().client(client).build();
+        Dial dial = new Dial.Builder()
+                .callerId(twilioConfig.getPhoneNumber()) // +16414018641
+                .client(client)
+                .build();
 
         return new VoiceResponse.Builder().say(say).dial(dial).build().toXml();
     }
 
     // Соединение оператора с клиентом (Исходящий)
     public String handleOutgoingCall(String clientPhoneNumber) {
+        log.info("handleOutgoingCall: to={}, callerId={}", clientPhoneNumber, twilioConfig.getPhoneNumber());
+
         Number number = new Number.Builder(clientPhoneNumber).build();
 
-        // ВАЖНО: Если Twilio будет отклонять вызов, раскомментируй строку ниже
-        // и подставь свой купленный номер Twilio (Caller ID), так как он обязателен по правилам некоторых стран.
-        // Dial dial = new Dial.Builder().callerId("+1234567890").number(number).build();
-
-        Dial dial = new Dial.Builder().number(number).build();
+        // callerId ОБЯЗАТЕЛЕН на триальном аккаунте Twilio — используем купленный номер
+        Dial dial = new Dial.Builder()
+                .callerId(twilioConfig.getPhoneNumber()) // +16414018641
+                .number(number)
+                .build();
 
         return new VoiceResponse.Builder().dial(dial).build().toXml();
     }

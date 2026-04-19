@@ -25,7 +25,6 @@ public class TelephonyController {
 
     @GetMapping("/token")
     public ResponseEntity<ApiResponse<String>> getToken() {
-        // Берём email напрямую из SecurityContext — это надежно
         String email = SecurityContextHolder.getContext()
                 .getAuthentication()
                 .getName();
@@ -34,28 +33,37 @@ public class TelephonyController {
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
+    /**
+     * Webhook для Twilio — вызывается автоматически при любом звонке.
+     * Параметры From и To приходят от Twilio:
+     *   - Исходящий (из браузера): From = "client:email@domain.com", To = номер телефона
+     *   - Входящий (с телефона):   From = номер телефона, To = наш Twilio-номер
+     */
     @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoice(@RequestParam MultiValueMap<String, String> params) {
         String from = params.getFirst("From");
-        String to = params.getFirst("To");
+        String to   = params.getFirst("To");
 
-        // 1. НАДЕЖНАЯ ПРОВЕРКА: Если звонок идет из браузера (Twilio Client),
-        // параметр From всегда выглядит как "client:email@domain.com"
+        // ИСХОДЯЩИЙ: звонок идёт из браузера Twilio Client
         if (from != null && from.startsWith("client:")) {
-            // Это ИСХОДЯЩИЙ звонок от оператора клиенту
+            String callerIdentity = from.replace("client:", "");
+            if (to == null || to.isBlank()) {
+                // Защита — не должно случиться, но на всякий случай
+                return "<Response><Say language=\"ru-RU\">Номер не указан.</Say></Response>";
+            }
             return twilioService.handleOutgoingCall(to);
         }
 
-        // 2. Иначе это ВХОДЯЩИЙ звонок: Создаем карточку в базе
+        // ВХОДЯЩИЙ: звонок с реального телефона
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
         call.setStatus(CallStatus.NEW);
         CallRequest savedCall = callRequestRepository.save(call);
 
-        // Уведомляем фронтенд по WebSocket о новом звонке
+        // Уведомляем фронтенд по WebSocket
         messagingTemplate.convertAndSend("/topic/calls", CallRequestDto.from(savedCall));
 
-        // Соединяем клиента с браузером оператора (временно захардкожено на admin)
+        // Соединяем с оператором (admin)
         return twilioService.handleIncomingCall("admin@crm.kz");
     }
 
@@ -107,5 +115,12 @@ public class TelephonyController {
         List<CallRequestDto> activeCalls = callRequestRepository.findByStatus(CallStatus.NEW)
                 .stream().map(CallRequestDto::from).toList();
         return ResponseEntity.ok(ApiResponse.ok(activeCalls));
+    }
+
+    @GetMapping("/calls/history")
+    public ResponseEntity<ApiResponse<List<CallRequestDto>>> getCallsHistory() {
+        List<CallRequestDto> history = callRequestRepository.findAll()
+                .stream().map(CallRequestDto::from).toList();
+        return ResponseEntity.ok(ApiResponse.ok(history));
     }
 }
