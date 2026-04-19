@@ -28,28 +28,32 @@ public class TelephonyController {
         String email = SecurityContextHolder.getContext()
                 .getAuthentication()
                 .getName();
-
         String token = twilioService.generateAccessToken(email);
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
     /**
-     * Webhook для Twilio — вызывается автоматически при любом звонке.
-     * Параметры From и To приходят от Twilio:
-     *   - Исходящий (из браузера): From = "client:email@domain.com", To = номер телефона
-     *   - Входящий (с телефона):   From = номер телефона, To = наш Twilio-номер
+     * GET /twiml/voice — для проверки доступности эндпоинта из браузера
+     */
+    @GetMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
+    public String handleVoiceGet() {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>OK</Say></Response>";
+    }
+
+    /**
+     * POST /twiml/voice — основной webhook для Twilio
+     * Twilio всегда шлёт POST с параметрами From и To
      */
     @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
-    public String handleVoice(@RequestParam MultiValueMap<String, String> params) {
-        String from = params.getFirst("From");
-        String to   = params.getFirst("To");
+    public String handleVoice(@RequestParam(required = false) MultiValueMap<String, String> params) {
+        String from = params != null ? params.getFirst("From") : null;
+        String to   = params != null ? params.getFirst("To")   : null;
 
-        // ИСХОДЯЩИЙ: звонок идёт из браузера Twilio Client
+        // ИСХОДЯЩИЙ: звонок идёт из браузера (From = "client:email@domain.com")
         if (from != null && from.startsWith("client:")) {
-            String callerIdentity = from.replace("client:", "");
             if (to == null || to.isBlank()) {
-                // Защита — не должно случиться, но на всякий случай
-                return "<Response><Say language=\"ru-RU\">Номер не указан.</Say></Response>";
+                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                        "<Response><Say language=\"ru-RU\">Номер не указан.</Say></Response>";
             }
             return twilioService.handleOutgoingCall(to);
         }
@@ -60,10 +64,8 @@ public class TelephonyController {
         call.setStatus(CallStatus.NEW);
         CallRequest savedCall = callRequestRepository.save(call);
 
-        // Уведомляем фронтенд по WebSocket
         messagingTemplate.convertAndSend("/topic/calls", CallRequestDto.from(savedCall));
 
-        // Соединяем с оператором (admin)
         return twilioService.handleIncomingCall("admin@crm.kz");
     }
 
@@ -82,15 +84,12 @@ public class TelephonyController {
     public ResponseEntity<ApiResponse<CallRequestDto>> answerCall(
             @PathVariable Long id, @AuthenticationPrincipal User currentUser) {
         CallRequest call = callRequestRepository.findById(id).orElseThrow();
-
         if (call.getStatus() != CallStatus.NEW) {
             throw new IllegalStateException("Call already taken");
         }
-
         call.setStatus(CallStatus.IN_PROGRESS);
         call.setOperator(currentUser);
         callRequestRepository.save(call);
-
         CallRequestDto callDto = CallRequestDto.from(call);
         messagingTemplate.convertAndSend("/topic/calls/answered", callDto);
         return ResponseEntity.ok(ApiResponse.ok(callDto));
@@ -100,13 +99,10 @@ public class TelephonyController {
     public ResponseEntity<ApiResponse<CallRequestDto>> completeCall(@PathVariable Long id) {
         CallRequest call = callRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Call not found"));
-
         call.setStatus(CallStatus.COMPLETED);
         callRequestRepository.save(call);
-
         CallRequestDto callDto = CallRequestDto.from(call);
         messagingTemplate.convertAndSend("/topic/calls/completed", callDto);
-
         return ResponseEntity.ok(ApiResponse.ok(callDto));
     }
 

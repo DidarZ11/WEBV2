@@ -41,27 +41,13 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .headers(headers -> headers.frameOptions(f -> f.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
-                        // Preflight OPTIONS — всегда разрешаем
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // Публичные эндпоинты авторизации
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
-
-                        // Swagger
+                        .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-
-                        // WebSocket
                         .requestMatchers("/ws-telephony/**").permitAll()
-
-                        // Симуляция входящего звонка
                         .requestMatchers("/api/v1/telephony/webhook/**").permitAll()
-
-                        // Twilio webhook — разрешаем ОБА метода GET и POST
-                        // Twilio шлёт POST, браузер для проверки шлёт GET
-                        .requestMatchers(HttpMethod.GET,  "/api/v1/telephony/twiml/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/telephony/twiml/**").permitAll()
-
-                        // Всё остальное — требует авторизации
+                        // Twilio webhook — разрешаем без аутентификации
+                        .requestMatchers("/api/v1/telephony/twiml/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

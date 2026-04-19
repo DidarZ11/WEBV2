@@ -25,13 +25,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
 
-    // ИСКЛЮЧЕНИЯ: Пропускаем запросы от Twilio и WebSockets без токена
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
-        return path.startsWith("/api/v1/telephony/twiml") ||
+        // Пропускаем без JWT: Twilio webhooks, WebSocket, симуляция
+        boolean skip = path.startsWith("/api/v1/telephony/twiml") ||
                 path.startsWith("/api/v1/telephony/webhook") ||
-                path.startsWith("/ws-telephony");
+                path.startsWith("/api/v1/auth") ||
+                path.startsWith("/ws-telephony") ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/v3/api-docs");
+        if (skip) {
+            log.debug("JWT Filter: SKIPPING path={}", path);
+        }
+        return skip;
     }
 
     @Override
