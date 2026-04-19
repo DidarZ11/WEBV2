@@ -31,11 +31,16 @@ public class User implements UserDetails {
     private String passwordHash;
 
     @Column(name = "full_name", nullable = false)
-    private String fullName; // Используем именно это поле
+    private String fullName;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
+
+    // --- НОВОЕ ПОЛЕ ---
+    @Enumerated(EnumType.STRING)
+    @Column(name = "department")
+    private Department department;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id")

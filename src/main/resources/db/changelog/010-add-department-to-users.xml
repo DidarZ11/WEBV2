@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="20260419-10" author="gemini">
+        <addColumn tableName="users">
+            <column name="department" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260419-11" author="gemini">
+        <update tableName="users">
+            <column name="department" value="DIGITAL_IT"/>
+            <where>email = 'admin@crm.kz'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,5 +1,6 @@
 package crm.user.dto;
 
+import crm.user.Department;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,4 +19,7 @@ public class UserCreateDto {
 
     @NotNull(message = "ID роли обязателен")
     private Long roleId;
+
+    @NotNull
+    private Department department; // Добавили поле
 }

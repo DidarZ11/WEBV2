@@ -22,6 +22,7 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // crm/user/UserService.java
     @Transactional
     public UserResponseDto createUser(UserCreateDto dto) {
         if (userRepository.existsByEmail(dto.getEmail())) {
@@ -31,19 +32,19 @@ public class UserService {
         Role role = roleRepository.findById(dto.getRoleId())
                 .orElseThrow(() -> new NotFoundException("Role not found"));
 
-        // Если пароль не передан — генерируем временный
         String rawPassword = (dto.getPassword() != null && !dto.getPassword().isBlank())
                 ? dto.getPassword()
                 : generateTempPassword();
 
         User user = new User();
         user.setEmail(dto.getEmail());
-        user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setFullName(dto.getFullName());
         user.setRole(role);
+        user.setDepartment(dto.getDepartment()); // Сохраняем департамент
+        user.setPasswordHash(passwordEncoder.encode(rawPassword));
 
         UserResponseDto response = UserResponseDto.from(userRepository.save(user));
-        response.setTempPassword(rawPassword); // показываем пароль один раз
+        response.setTempPassword(rawPassword);
         return response;
     }
 
