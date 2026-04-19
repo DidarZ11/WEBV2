@@ -3,8 +3,8 @@ package crm.telephony;
 import com.twilio.jwt.accesstoken.AccessToken;
 import com.twilio.jwt.accesstoken.VoiceGrant;
 import com.twilio.twiml.VoiceResponse;
-import com.twilio.twiml.voice.Dial;
 import com.twilio.twiml.voice.Client;
+import com.twilio.twiml.voice.Dial;
 import com.twilio.twiml.voice.Number;
 import com.twilio.twiml.voice.Say;
 import crm.config.TwilioConfig;
@@ -19,6 +19,7 @@ public class TwilioService {
 
     private final TwilioConfig twilioConfig;
 
+    // Генерация токена для браузера
     public String generateAccessToken(String identity) {
         VoiceGrant grant = new VoiceGrant();
         grant.setOutgoingApplicationSid(twilioConfig.getTwimlAppSid());
@@ -33,24 +34,47 @@ public class TwilioService {
                 .grant(grant)
                 .build();
 
-        return token.toJwt();
+        String jwt = token.toJwt();
+        log.info("Generated Twilio token for identity={}", identity);
+        return jwt;
     }
 
+    // Соединение клиента с оператором (Входящий)
     public String handleIncomingCall(String operatorIdentity) {
         Say say = new Say.Builder("Входящий звонок. Соединяю с оператором.")
                 .language(Say.Language.RU_RU)
                 .build();
 
         Client client = new Client.Builder(operatorIdentity).build();
-        Dial dial = new Dial.Builder().client(client).build();
+        Dial dial = new Dial.Builder()
+                .callerId(twilioConfig.getPhoneNumber()) // +16414018641
+                .client(client)
+                .build();
 
         return new VoiceResponse.Builder().say(say).dial(dial).build().toXml();
     }
 
+    // Соединение оператора с клиентом (Исходящий)
     public String handleOutgoingCall(String clientPhoneNumber) {
-        // Создаем Dial на реальный номер мобильного телефона
-        Number number = new Number.Builder(clientPhoneNumber).build();
-        Dial dial = new Dial.Builder().number(number).build();
+        // Убираем пробелы, скобки, тире — оставляем только + и цифры
+        String cleanNumber = clientPhoneNumber.replaceAll("[^+\\d]", "");
+
+        log.info("handleOutgoingCall: raw={}, cleaned={}, callerId={}",
+                clientPhoneNumber, cleanNumber, twilioConfig.getPhoneNumber());
+
+        if (cleanNumber.isBlank()) {
+            log.error("handleOutgoingCall: номер пустой после очистки!");
+            return new VoiceResponse.Builder()
+                    .say(new Say.Builder("Номер телефона не указан.")
+                            .language(Say.Language.RU_RU).build())
+                    .build().toXml();
+        }
+
+        Number number = new Number.Builder(cleanNumber).build();
+        Dial dial = new Dial.Builder()
+                .callerId(twilioConfig.getPhoneNumber())
+                .number(number)
+                .build();
 
         return new VoiceResponse.Builder().dial(dial).build().toXml();
     }
