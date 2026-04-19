@@ -42,17 +42,30 @@ public class TelephonyController {
 
         String from = params.getFirst("From");
 
-        // phoneNumber — кастомный параметр от фронта (не "To" — зарезервировано!)
-        String to = params.getFirst("phoneNumber");
-        if (to == null || to.isBlank()) to = params.getFirst("PhoneNumber");
-        if (to == null || to.isBlank()) to = params.getFirst("To");
-        if (to == null || to.isBlank()) to = params.getFirst("Called");
+        // Twilio передаёт кастомные params напрямую по имени
+        String to = null;
+        for (String key : params.keySet()) {
+            String val = params.getFirst(key);
+            log.info("  param key=[{}] val=[{}]", key, val);
+            if (to == null && val != null && !val.isBlank()
+                    && !val.startsWith("client:")
+                    && !val.startsWith("AP")
+                    && !val.startsWith("AC")
+                    && !val.startsWith("CA")
+                    && !val.equals("ringing")
+                    && !val.equals("inbound")
+                    && !val.equals("2010-04-01")
+                    && (val.startsWith("+") || val.matches("\\d{10,15}"))) {
+                to = val;
+                log.info("  --> Found phone number in key=[{}]: {}", key, to);
+            }
+        }
 
         log.info("from={}, to={}", from, to);
 
         if (from != null && from.startsWith("client:")) {
             if (to == null || to.isBlank()) {
-                log.warn("Outgoing call but To is empty! params={}", params);
+                log.warn("Outgoing call but To is empty!");
                 return new VoiceResponse.Builder()
                         .say(new Say.Builder("Номер не указан")
                                 .language(Say.Language.RU_RU).build())
