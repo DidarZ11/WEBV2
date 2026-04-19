@@ -4,6 +4,7 @@ import crm.common.response.ApiResponse;
 import crm.telephony.dto.CallRequestDto;
 import crm.user.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -17,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/telephony")
 @RequiredArgsConstructor
+@Slf4j
 public class TelephonyController {
 
     private final CallRequestRepository callRequestRepository;
@@ -32,26 +34,36 @@ public class TelephonyController {
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
-    /**
-     * GET /twiml/voice — для проверки доступности эндпоинта из браузера
-     */
+    // GET для проверки доступности из браузера
     @GetMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoiceGet() {
+        log.info("TWIML GET /voice - endpoint is accessible");
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>OK</Say></Response>";
     }
 
-    /**
-     * POST /twiml/voice — основной webhook для Twilio
-     * Twilio всегда шлёт POST с параметрами From и To
-     */
+    // POST - основной webhook от Twilio
     @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoice(@RequestParam(required = false) MultiValueMap<String, String> params) {
+        // Логируем ВСЕ параметры которые прислал Twilio — это ключевая диагностика
+        log.info("=== TWILIO WEBHOOK CALLED ===");
+        if (params != null) {
+            params.forEach((key, values) ->
+                    log.info("  PARAM: {}={}", key, values)
+            );
+        } else {
+            log.warn("  PARAMS IS NULL!");
+        }
+
         String from = params != null ? params.getFirst("From") : null;
         String to   = params != null ? params.getFirst("To")   : null;
 
-        // ИСХОДЯЩИЙ: звонок идёт из браузера (From = "client:email@domain.com")
+        log.info("  From={}, To={}", from, to);
+
+        // ИСХОДЯЩИЙ: звонок из браузера
         if (from != null && from.startsWith("client:")) {
+            log.info("  => OUTGOING CALL to={}", to);
             if (to == null || to.isBlank()) {
+                log.error("  => To IS EMPTY! Returning error TwiML");
                 return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
                         "<Response><Say language=\"ru-RU\">Номер не указан.</Say></Response>";
             }
@@ -59,13 +71,12 @@ public class TelephonyController {
         }
 
         // ВХОДЯЩИЙ: звонок с реального телефона
+        log.info("  => INCOMING CALL from={}", from);
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
         call.setStatus(CallStatus.NEW);
         CallRequest savedCall = callRequestRepository.save(call);
-
         messagingTemplate.convertAndSend("/topic/calls", CallRequestDto.from(savedCall));
-
         return twilioService.handleIncomingCall("admin@crm.kz");
     }
 

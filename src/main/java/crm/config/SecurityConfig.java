@@ -1,6 +1,7 @@
 package crm.config;
 
 import crm.auth.filter.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,13 +41,15 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .headers(headers -> headers.frameOptions(f -> f.sameOrigin()))
+                // Критично: разрешаем ERROR и ASYNC dispatch без проверки авторизации
+                // Это исправляет "Unable to handle Spring Security Exception because response is already committed"
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/ws-telephony/**").permitAll()
                         .requestMatchers("/api/v1/telephony/webhook/**").permitAll()
-                        // Twilio webhook — разрешаем без аутентификации
                         .requestMatchers("/api/v1/telephony/twiml/**").permitAll()
                         .anyRequest().authenticated()
                 )
