@@ -48,20 +48,30 @@ public class SecurityConfig {
                 )
                 .headers(headers -> headers.frameOptions(f -> f.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
+                        // Разрешаем системные запросы
                         .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+
+                        // Публичные эндпоинты (логин, регистрация, документация)
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+
+                        // Телефония
                         .requestMatchers("/ws-telephony/**").permitAll()
                         .requestMatchers("/api/v1/telephony/webhook/**").permitAll()
                         .requestMatchers("/api/v1/telephony/twiml/**").permitAll()
-                        // Найди эту строку в своем SecurityConfig.java и замени на:
-                        .requestMatchers("/api/v1/auth/change-password").authenticated() // Должен быть доступен всем вошедшим
+
+                        // Смена пароля (только для авторизованных, любая роль)
+                        .requestMatchers("/api/v1/auth/change-password").authenticated()
+
+                        // Управление пользователями (доступно ADMIN, MANAGER и HR)
                         .requestMatchers("/api/v1/user/**").hasAnyAuthority("ADMIN", "MANAGER", "HR")
+
+                        // Все остальное требует авторизации
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider()) // Теперь метод есть ниже
+                .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -70,6 +80,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+        // Разрешаем фронтенд (Vite порт 5173)
         config.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
@@ -82,7 +93,6 @@ public class SecurityConfig {
         return source;
     }
 
-    // ВОТ ЭТОТ МЕТОД БЫЛ ОШИБКОЙ НА СКРИНШОТЕ
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
