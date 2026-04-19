@@ -1,7 +1,5 @@
 package crm.telephony;
 
-import com.twilio.twiml.VoiceResponse;
-import com.twilio.twiml.voice.Say;
 import crm.common.response.ApiResponse;
 import crm.telephony.dto.CallRequestDto;
 import crm.user.User;
@@ -10,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
@@ -29,51 +26,65 @@ public class TelephonyController {
 
     @GetMapping("/token")
     public ResponseEntity<ApiResponse<String>> getToken() {
-        String email = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName();
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
         String token = twilioService.generateAccessToken(email);
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
     @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
-    public String handleVoice(@RequestParam MultiValueMap<String, String> params) {
-        log.info("=== TwiML FULL params: {}", params);
+    public String handleVoice(
+            @RequestParam MultiValueMap<String, String> params,
+            // Номер телефона передаётся как query param в URL
+            @RequestParam(value = "to", required = false) String toParam) {
+
+        log.info("=== TwiML params: {}", params);
 
         String from = params.getFirst("From");
 
-        // Twilio передаёт кастомные params напрямую по имени
-        String to = null;
-        for (String key : params.keySet()) {
-            String val = params.getFirst(key);
-            log.info("  param key=[{}] val=[{}]", key, val);
-            if (to == null && val != null && !val.isBlank()
-                    && !val.startsWith("client:")
-                    && !val.startsWith("AP")
-                    && !val.startsWith("AC")
-                    && !val.startsWith("CA")
-                    && !val.equals("ringing")
-                    && !val.equals("inbound")
-                    && !val.equals("2010-04-01")
-                    && (val.startsWith("+") || val.matches("\\d{10,15}"))) {
-                to = val;
-                log.info("  --> Found phone number in key=[{}]: {}", key, to);
+        // Пробуем получить номер из разных источников
+        String to = toParam; // из URL query param (?to=+77...)
+
+        // Если нет в URL — ищем в теле запроса
+        if (to == null || to.isBlank()) {
+            to = params.getFirst("To");
+        }
+        if (to == null || to.isBlank()) {
+            to = params.getFirst("PhoneNumber");
+        }
+
+        // Ищем любой параметр похожий на номер телефона
+        if (to == null || to.isBlank()) {
+            for (String key : params.keySet()) {
+                String val = params.getFirst(key);
+                if (val != null && !val.isBlank()
+                        && !val.startsWith("client:")
+                        && !val.startsWith("AP")
+                        && !val.startsWith("AC")
+                        && !val.startsWith("CA")
+                        && !val.equals("ringing")
+                        && !val.equals("inbound")
+                        && !val.equals("2010-04-01")
+                        && (val.startsWith("+") || val.matches("\\d{7,15}"))) {
+                    to = val;
+                    log.info("Found phone in param [{}]: {}", key, to);
+                    break;
+                }
             }
         }
 
         log.info("from={}, to={}", from, to);
 
+        // Исходящий звонок с браузера
         if (from != null && from.startsWith("client:")) {
             if (to == null || to.isBlank()) {
-                log.warn("Outgoing call but To is empty!");
-                return new VoiceResponse.Builder()
-                        .say(new Say.Builder("Номер не указан")
-                                .language(Say.Language.RU_RU).build())
-                        .build().toXml();
+                log.warn("Outgoing call but To is empty! All params: {}", params);
+                return "<Response><Say language=\"ru-RU\">Номер не указан. Пожалуйста, введите номер телефона.</Say></Response>";
             }
+            log.info("Outgoing call to: {}", to);
             return twilioService.handleOutgoingCall(to);
         }
 
+        // Входящий звонок с реального телефона
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
         call.setStatus(CallStatus.NEW);
@@ -95,27 +106,14 @@ public class TelephonyController {
 
     @PostMapping("/calls/{id}/answer")
     public ResponseEntity<ApiResponse<CallRequestDto>> answerCall(
-            @PathVariable Long id, @AuthenticationPrincipal User currentUser) {
+            @PathVariable Long id) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
         CallRequest call = callRequestRepository.findById(id).orElseThrow();
-        if (call.getStatus() != CallStatus.NEW) {
-            throw new IllegalStateException("Call already taken");
-        }
         call.setStatus(CallStatus.IN_PROGRESS);
-        call.setOperator(currentUser);
         callRequestRepository.save(call);
+
         CallRequestDto callDto = CallRequestDto.from(call);
         messagingTemplate.convertAndSend("/topic/calls/answered", callDto);
-        return ResponseEntity.ok(ApiResponse.ok(callDto));
-    }
-
-    @PostMapping("/calls/{id}/complete")
-    public ResponseEntity<ApiResponse<CallRequestDto>> completeCall(@PathVariable Long id) {
-        CallRequest call = callRequestRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Call not found"));
-        call.setStatus(CallStatus.COMPLETED);
-        callRequestRepository.save(call);
-        CallRequestDto callDto = CallRequestDto.from(call);
-        messagingTemplate.convertAndSend("/topic/calls/completed", callDto);
         return ResponseEntity.ok(ApiResponse.ok(callDto));
     }
 
@@ -124,15 +122,5 @@ public class TelephonyController {
         List<CallRequestDto> activeCalls = callRequestRepository.findByStatus(CallStatus.NEW)
                 .stream().map(CallRequestDto::from).toList();
         return ResponseEntity.ok(ApiResponse.ok(activeCalls));
-    }
-
-    @GetMapping("/calls/history")
-    public ResponseEntity<ApiResponse<List<CallRequestDto>>> getCallHistory() {
-        List<CallRequestDto> history = callRequestRepository.findAll()
-                .stream()
-                .filter(c -> c.getStatus() == CallStatus.COMPLETED || c.getStatus() == CallStatus.IN_PROGRESS)
-                .map(CallRequestDto::from)
-                .toList();
-        return ResponseEntity.ok(ApiResponse.ok(history));
     }
 }
