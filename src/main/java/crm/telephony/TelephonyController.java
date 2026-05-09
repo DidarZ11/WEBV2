@@ -34,12 +34,17 @@ public class TelephonyController {
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
 
+    // GET — для проверки что endpoint доступен
     @GetMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoiceGet() {
-        log.info("TWIML GET /voice - OK");
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>OK</Say></Response>";
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>Endpoint OK</Say></Response>";
     }
 
+    /**
+     * Twilio вызывает этот webhook при ЛЮБОМ звонке через TwiML App.
+     * Сценарий: Twilio Console → CRM браузер оператора.
+     * Просто соединяем звонящего с оператором admin@crm.kz.
+     */
     @PostMapping(value = "/twiml/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoice(@RequestParam(required = false) MultiValueMap<String, String> params) {
         log.info("=== TWILIO WEBHOOK ===");
@@ -47,45 +52,24 @@ public class TelephonyController {
             params.forEach((k, v) -> log.info("  {}={}", k, v));
         }
 
-        String from   = params != null ? params.getFirst("From")   : null;
-        String to     = params != null ? params.getFirst("To")     : null;
-        String caller = params != null ? params.getFirst("Caller") : null;
+        String from = params != null ? params.getFirst("From") : "Unknown";
 
-        log.info("  from={} to={} caller={}", from, to, caller);
+        log.info("  from={}", from);
+        log.info("  => Соединяем с оператором admin@crm.kz");
 
-        // Исходящий: From или Caller начинается с "client:"
-        boolean isOutgoing = (from != null && from.startsWith("client:"))
-                || (caller != null && caller.startsWith("client:"));
-
-        if (isOutgoing) {
-            log.info("  => ИСХОДЯЩИЙ ЗВОНОК, to={}", to);
-
-            if (to == null || to.isBlank()) {
-                log.error("  => To ПУСТОЙ!");
-                return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
-                        "<Response><Say language=\"ru-RU\">Ошибка: получатель не указан.</Say></Response>";
-            }
-
-            // ✅ БРАУЗЕР → БРАУЗЕР: To = identity (email), используем <Client>
-            // Если To выглядит как email или не начинается с + — это identity
-            if (!to.startsWith("+") && !to.startsWith("client:")) {
-                log.info("  => БРАУЗЕР→БРАУЗЕР, звоним на identity={}", to);
-                return twilioService.handleIncomingCall(to);
-            }
-
-            // БРАУЗЕР → ТЕЛЕФОН: To = +7XXXXXXXXXX, используем <Number>
-            log.info("  => БРАУЗЕР→ТЕЛЕФОН, звоним на номер={}", to);
-            return twilioService.handleOutgoingCall(to);
-        }
-
-        // Входящий звонок (с реального телефона)
-        log.info("  => ВХОДЯЩИЙ ЗВОНОК from={}", from);
+        // Сохраняем звонок в БД
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
         call.setStatus(CallStatus.NEW);
         CallRequest savedCall = callRequestRepository.save(call);
+
+        // Уведомляем CRM фронт по WebSocket
         messagingTemplate.convertAndSend("/topic/calls", CallRequestDto.from(savedCall));
-        return twilioService.handleIncomingCall("admin@crm.kz");
+
+        log.info("  Saved call id={}, from={}", savedCall.getId(), from);
+
+        // Всегда соединяем с оператором в браузере
+        return twilioService.connectToOperator("admin@crm.kz");
     }
 
     @PostMapping("/webhook/simulate")
