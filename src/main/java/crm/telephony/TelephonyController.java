@@ -47,29 +47,38 @@ public class TelephonyController {
             params.forEach((k, v) -> log.info("  {}={}", k, v));
         }
 
-        String from      = params != null ? params.getFirst("From")      : null;
-        String to        = params != null ? params.getFirst("To")        : null;
-        String caller    = params != null ? params.getFirst("Caller")    : null;
-        String direction = params != null ? params.getFirst("Direction") : null;
+        String from   = params != null ? params.getFirst("From")   : null;
+        String to     = params != null ? params.getFirst("To")     : null;
+        String caller = params != null ? params.getFirst("Caller") : null;
 
-        log.info("  from={} to={} caller={} direction={}", from, to, caller, direction);
+        log.info("  from={} to={} caller={}", from, to, caller);
 
-        // Исходящий: From начинается с "client:" (даже если Anonymous)
-        // ИЛИ Direction = "inbound" но Caller = "client:..."
+        // Исходящий: From или Caller начинается с "client:"
         boolean isOutgoing = (from != null && from.startsWith("client:"))
                 || (caller != null && caller.startsWith("client:"));
 
         if (isOutgoing) {
             log.info("  => ИСХОДЯЩИЙ ЗВОНОК, to={}", to);
+
             if (to == null || to.isBlank()) {
-                log.error("  => To ПУСТОЙ! Фронт не передал номер в params.To");
+                log.error("  => To ПУСТОЙ!");
                 return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
-                        "<Response><Say language=\"ru-RU\">Ошибка: номер не передан.</Say></Response>";
+                        "<Response><Say language=\"ru-RU\">Ошибка: получатель не указан.</Say></Response>";
             }
+
+            // ✅ БРАУЗЕР → БРАУЗЕР: To = identity (email), используем <Client>
+            // Если To выглядит как email или не начинается с + — это identity
+            if (!to.startsWith("+") && !to.startsWith("client:")) {
+                log.info("  => БРАУЗЕР→БРАУЗЕР, звоним на identity={}", to);
+                return twilioService.handleIncomingCall(to);
+            }
+
+            // БРАУЗЕР → ТЕЛЕФОН: To = +7XXXXXXXXXX, используем <Number>
+            log.info("  => БРАУЗЕР→ТЕЛЕФОН, звоним на номер={}", to);
             return twilioService.handleOutgoingCall(to);
         }
 
-        // Входящий
+        // Входящий звонок (с реального телефона)
         log.info("  => ВХОДЯЩИЙ ЗВОНОК from={}", from);
         CallRequest call = new CallRequest();
         call.setClientPhone(from != null ? from : "Unknown");
